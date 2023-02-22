@@ -1,6 +1,7 @@
 """Create STAC Item from a rasterio dataset."""
 
 import datetime
+import itertools
 import math
 import os
 import warnings
@@ -202,6 +203,10 @@ def get_raster_info(
     return meta
 
 
+def get_band_info():
+    pass
+
+
 def get_media_type(
     src_dst: Union[DatasetReader, DatasetWriter, WarpedVRT, MemoryFile]
 ) -> Optional[pystac.MediaType]:
@@ -241,7 +246,7 @@ def get_media_type(
 
 
 def create_stac_item(
-    source: Union[str, DatasetReader, DatasetWriter, WarpedVRT, MemoryFile],
+    sources: List[Union[str, DatasetReader, DatasetWriter, WarpedVRT, MemoryFile]],
     input_datetime: Optional[datetime.datetime] = None,
     extensions: Optional[List[str]] = None,
     collection: Optional[str] = None,
@@ -249,10 +254,10 @@ def create_stac_item(
     properties: Optional[Dict] = None,
     id: Optional[str] = None,
     assets: Optional[Dict[str, pystac.Asset]] = None,
-    asset_name: str = "asset",
+    asset_names: List[str] = ["asset"],
     asset_roles: Optional[List[str]] = [],
     asset_media_type: Optional[Union[str, pystac.MediaType]] = "auto",
-    asset_href: Optional[str] = None,
+    asset_hrefs: List[Optional[str]] = None,
     with_proj: bool = False,
     with_raster: bool = False,
     with_eo: bool = False,
@@ -285,6 +290,8 @@ def create_stac_item(
     properties = properties or {}
     extensions = extensions or []
 
+    # Get all information except the information about assets from the first source
+    source = sources[0]
     with ExitStack() as ctx:
         if isinstance(source, (DatasetReader, DatasetWriter, WarpedVRT)):
             dataset = source
@@ -380,14 +387,17 @@ def create_stac_item(
             item.add_asset(key=key, asset=asset)
 
     else:
-        item.add_asset(
-            key=asset_name,
-            asset=pystac.Asset(
-                href=asset_href or dataset.name,
-                media_type=media_type,
-                extra_fields={**raster_info, **eo_info},
-                roles=asset_roles,
-            ),
-        )
+        for asset_name, asset_href, asset_path in itertools.zip_longest(
+            asset_names, asset_hrefs, sources
+        ):
+            item.add_asset(
+                key=asset_name,
+                asset=pystac.Asset(
+                    href=asset_href or asset_path,
+                    media_type=media_type,
+                    extra_fields={**raster_info, **eo_info},
+                    roles=asset_roles,
+                ),
+            )
 
     return item

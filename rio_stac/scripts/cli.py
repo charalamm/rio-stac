@@ -57,14 +57,20 @@ def _cb_key_val(ctx, param, value):
 )
 @click.option("--id", type=str, help="Item id.")
 @click.option(
-    "--asset-name",
+    "--asset-names",
     "-n",
     type=str,
-    default="asset",
+    multiple=True,
+    default=["asset"],
     help="Asset name.",
     show_default=True,
 )
-@click.option("--asset-href", type=str, help="Overwrite asset href.")
+@click.option(
+    "--asset-href",
+    type=click.Path(exists=True),
+    multiple=True,
+    help="Overwrite asset href.",
+)
 @click.option(
     "--asset-mediatype",
     type=click.Choice([it.name for it in MediaType] + ["auto"]),
@@ -98,15 +104,15 @@ def _cb_key_val(ctx, param, value):
     help="GDAL configuration options.",
 )
 def stac(
-    input,
+    inputs,
     input_datetime,
     extension,
     collection,
     collection_url,
     property,
     id,
-    asset_name,
-    asset_href,
+    asset_names,
+    asset_hrefs,
     asset_mediatype,
     with_proj,
     with_raster,
@@ -135,15 +141,15 @@ def stac(
 
     with rasterio.Env(**config):
         item = create_stac_item(
-            input,
+            inputs,
             input_datetime=input_datetime,
             extensions=extensions,
             collection=collection,
             collection_url=collection_url,
             properties=property,
             id=id,
-            asset_name=asset_name,
-            asset_href=asset_href,
+            asset_name=asset_names,
+            asset_href=asset_hrefs,
             asset_media_type=asset_mediatype,
             with_proj=with_proj,
             with_raster=with_raster,
