@@ -62,14 +62,14 @@ def _cb_key_val(ctx, param, value):
     type=str,
     multiple=True,
     default=["asset"],
-    help="Asset name.",
+    help="The asset names. A comma separated list. The list must be ordered based on the file paths provided.",
     show_default=True,
 )
 @click.option(
     "--asset-href",
     type=click.Path(exists=True),
     multiple=True,
-    help="Overwrite asset href.",
+    help="Overwrite asset hrefs. A comma separated list. The list must be ordered based on the file paths provided.",
 )
 @click.option(
     "--asset-mediatype",
