@@ -255,7 +255,7 @@ def create_stac_item(
     id: Optional[str] = None,
     assets: Optional[Dict[str, pystac.Asset]] = None,
     asset_names: List[str] = ["asset"],
-    asset_roles: Optional[List[str]] = [],
+    asset_roles: Optional[List[str]] = ["data"],
     asset_media_type: Optional[Union[str, pystac.MediaType]] = "auto",
     asset_hrefs: List[Optional[str]] = None,
     with_proj: bool = False,
@@ -274,10 +274,10 @@ def create_stac_item(
         properties (dict, optional): additional properties to add in the item.
         id (str, optional): id to assign to the item (default to the source basename).
         assets (dict, optional): Assets to set in the item. If set we won't create one from the source.
-        asset_name (str, optional): asset name in the Assets object.
+        asset_names List[(str, optional)]: asset name in the Assets object.
         asset_roles (list of str, optional): list of str | list of asset's roles.
         asset_media_type (str or pystac.MediaType, optional): asset's media type.
-        asset_href (str, optional): asset's URI (default to input path).
+        asset_hrefs List[(str, optional)]: asset's URI (default to input path).
         with_proj (bool): Add the `projection` extension and properties (default to False).
         with_raster (bool): Add the `raster` extension and properties (default to False).
         with_eo (bool): Add the `eo` extension and properties (default to False).
@@ -395,7 +395,6 @@ def create_stac_item(
                 asset=pystac.Asset(
                     href=asset_href or asset_path,
                     media_type=media_type,
-                    extra_fields={**raster_info, **eo_info},
                     roles=asset_roles,
                 ),
             )

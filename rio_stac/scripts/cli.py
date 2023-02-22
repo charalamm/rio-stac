@@ -28,7 +28,11 @@ def _cb_key_val(ctx, param, value):
 
 
 @click.command()
-@options.file_in_arg
+# @options.file_in_arg
+@click.argument(
+    "inputs",
+    nargs=-1
+)
 @click.option(
     "--datetime",
     "-d",
@@ -60,15 +64,13 @@ def _cb_key_val(ctx, param, value):
     "--asset-names",
     "-n",
     type=str,
-    multiple=True,
     default=["asset"],
     help="The asset names. A comma separated list. The list must be ordered based on the file paths provided.",
     show_default=True,
 )
 @click.option(
-    "--asset-href",
-    type=click.Path(exists=True),
-    multiple=True,
+    "--asset-hrefs",
+    type=str,
     help="Overwrite asset hrefs. A comma separated list. The list must be ordered based on the file paths provided.",
 )
 @click.option(
@@ -123,6 +125,13 @@ def stac(
     """Rasterio STAC plugin: Create a STAC Item for raster dataset."""
     property = property or {}
 
+    asset_names = asset_names.split(",") if asset_names else []
+    if len(inputs) < len(asset_names):
+        raise Exception("asset_names if specified map to items in 1:1 way")
+    asset_hrefs = asset_hrefs.split(",") if asset_hrefs else []
+    if len(inputs) < len(asset_hrefs):
+        raise Exception("asset_hrefs if specified map to items in 1:1 way")
+
     if input_datetime:
         if "/" in input_datetime:
             start_datetime, end_datetime = input_datetime.split("/")
@@ -148,8 +157,8 @@ def stac(
             collection_url=collection_url,
             properties=property,
             id=id,
-            asset_name=asset_names,
-            asset_href=asset_hrefs,
+            asset_names=asset_names,
+            asset_hrefs=asset_hrefs,
             asset_media_type=asset_mediatype,
             with_proj=with_proj,
             with_raster=with_raster,
