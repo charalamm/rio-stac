@@ -203,10 +203,6 @@ def get_raster_info(
     return meta
 
 
-def get_band_info():
-    pass
-
-
 def get_media_type(
     src_dst: Union[DatasetReader, DatasetWriter, WarpedVRT, MemoryFile]
 ) -> Optional[pystac.MediaType]:
@@ -243,6 +239,36 @@ def get_media_type(
 
     warnings.warn("Could not determine the media type from GDAL driver.")
     return None
+
+
+def get_asset(asset_path, asset_title, asset_href):
+
+    with ExitStack() as ctx:
+        if isinstance(asset_path, (DatasetReader, DatasetWriter, WarpedVRT)):
+            dataset = asset_path
+        else:
+            dataset = ctx.enter_context(rasterio.open(asset_path))
+
+        {
+            "title": asset_title or dataset.descriptions[0].lower().replace(" ", "_"),
+            "type": get_media_type(dataset),
+            "roles": [
+                "data"
+            ],
+            "gsd": 60,
+            "eo:bands": [
+                {
+                    "name": dataset.descriptions[0],
+                    "common_name": "coastal",
+                    "center_wavelength": 0.4439,
+                    "full_width_half_max": 0.027
+                }
+            ],
+            "href": asset_href or asset_path,
+            "proj:shape":[dataset.height, dataset.width],
+            "proj:transform": list(dataset.transform)
+        }
+    pass
 
 
 def create_stac_item(
