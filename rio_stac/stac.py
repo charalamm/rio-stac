@@ -81,8 +81,6 @@ def get_projection_info(
         "epsg": epsg,
         "geometry": bbox_to_geom(src_dst.bounds),
         "bbox": list(src_dst.bounds),
-        "shape": [src_dst.height, src_dst.width],
-        "transform": list(src_dst.transform),
     }
     if projjson is not None:
         meta["projjson"] = projjson
@@ -94,30 +92,21 @@ def get_projection_info(
 
 
 def get_eobands_info(
-    src_dst: Union[DatasetReader, DatasetWriter, WarpedVRT, MemoryFile]
+    src_dst: Union[DatasetReader, DatasetWriter, WarpedVRT, MemoryFile],
+    asset_title: str,
 ) -> List:
     """Get eo:bands metadata.
 
     see: https://github.com/stac-extensions/eo#item-properties-or-asset-fields
 
     """
-    eo_bands = []
 
     colors = src_dst.colorinterp
-    for ix in src_dst.indexes:
-        band_meta = {"name": f"b{ix}"}
 
-        descr = src_dst.descriptions[ix - 1]
-        color = colors[ix - 1].name
-
-        # Description metadata or Colorinterp or Nothing
-        description = descr or color
-        if description:
-            band_meta["description"] = description
-
-        eo_bands.append(band_meta)
-
-    return eo_bands
+    return [{
+        "name": asset_title or src_dst.descriptions[0],
+        "description": src_dst.descriptions[0] or colors[0].name
+    }]
 
 
 def _get_stats(arr: numpy.ma.MaskedArray, **kwargs: Any) -> Dict:
@@ -241,7 +230,7 @@ def get_media_type(
     return None
 
 
-def get_asset(asset_path, asset_title, asset_href):
+def get_asset(asset_path, asset_title, asset_href, raster_max_size, roles=["data"]):
 
     with ExitStack() as ctx:
         if isinstance(asset_path, (DatasetReader, DatasetWriter, WarpedVRT)):
@@ -249,26 +238,30 @@ def get_asset(asset_path, asset_title, asset_href):
         else:
             dataset = ctx.enter_context(rasterio.open(asset_path))
 
-        {
-            "title": asset_title or dataset.descriptions[0].lower().replace(" ", "_"),
-            "type": get_media_type(dataset),
-            "roles": [
-                "data"
-            ],
-            "gsd": 60,
-            "eo:bands": [
-                {
-                    "name": dataset.descriptions[0],
-                    "common_name": "coastal",
-                    "center_wavelength": 0.4439,
-                    "full_width_half_max": 0.027
-                }
-            ],
+        key = (asset_title or dataset.descriptions[0]).lower().replace(" ", "_")
+
+        extra_fields={
+            "gsd": dataset.res[0],
+            "raster:bands": get_raster_info(dataset, max_size=raster_max_size),
+            "eo:bands": get_eobands_info(dataset, asset_title),
             "href": asset_href or asset_path,
             "proj:shape":[dataset.height, dataset.width],
             "proj:transform": list(dataset.transform)
         }
-    pass
+
+        cloud_cover = dataset.get_tag_item("CLOUDCOVER", "IMAGERY")
+        if cloud_cover is not None:
+            extra_fields.update({"eo:cloud_cover": int(cloud_cover)})
+
+        asset = pystac.Asset(
+            href=asset_href or asset_path,
+            title=asset_title or dataset.descriptions[0],
+            media_type= get_media_type(dataset),
+            roles=roles,
+            extra_fields=extra_fields,
+        )
+
+    return key, asset
 
 
 def create_stac_item(
@@ -363,28 +356,15 @@ def create_stac_item(
                 }
             )
 
-        # add raster properties
-        raster_info = {}
         if with_raster:
             extensions.append(
                 f"https://stac-extensions.github.io/raster/{RASTER_EXT_VERSION}/schema.json",
             )
 
-            raster_info = {
-                "raster:bands": get_raster_info(dataset, max_size=raster_max_size)
-            }
-
-        eo_info: Dict[str, List] = {}
         if with_eo:
             extensions.append(
                 f"https://stac-extensions.github.io/eo/{EO_EXT_VERSION}/schema.json",
             )
-
-            eo_info = {"eo:bands": get_eobands_info(src_dst)}
-
-            cloudcover = src_dst.get_tag_item("CLOUDCOVER", "IMAGERY")
-            if cloudcover is not None:
-                properties.update({"eo:cloud_cover": int(cloudcover)})
 
     # item
     item = pystac.Item(
@@ -413,16 +393,10 @@ def create_stac_item(
             item.add_asset(key=key, asset=asset)
 
     else:
-        for asset_name, asset_href, asset_path in itertools.zip_longest(
-            asset_names, asset_hrefs, sources
+        for asset_path, asset_name, asset_href  in itertools.zip_longest(
+            sources, asset_names, asset_hrefs
         ):
-            item.add_asset(
-                key=asset_name,
-                asset=pystac.Asset(
-                    href=asset_href or asset_path,
-                    media_type=media_type,
-                    roles=asset_roles,
-                ),
-            )
+            key, asset = get_asset(asset_path, asset_name, asset_href, raster_max_size, asset_roles)
+            item.add_asset(key=key, asset=asset)
 
     return item
